@@ -1,0 +1,14 @@
+- name: install wg
+  hosts: all
+  tasks:
+    - name: Run the equivalent of "apt-get update" as a separate step
+      ansible.builtin.apt:
+        update_cache: yes
+    - name: Install wg
+      ansible.builtin.apt:
+        name: wireguard
+        state: latest
+    - name: genkey
+      shell: wg genkey | tee /etc/wireguard/privatekey | wg pubkey | tee /etc/wireguard/publickey
+    - name: chmod
+      shell: chmod 600 /etc/wireguard/privatekey

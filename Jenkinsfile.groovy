@@ -5,7 +5,7 @@ pipeline {
 
 	choice(name: 'size', choices: ["1 CPU 1 GB","1 CPU 0.5 GB"], description: 'A slug indicating the size of the Droplet')
 
-	string(name: 'time', description: 'Через сколько удвлить машину?()')
+	string(name: 'time', description: 'Через сколько удвлить машину?(минуты)')
     }
     stages {
         stage('auth') {
@@ -22,9 +22,11 @@ pipeline {
 	     }//steps
         }//stage
 	stage('create VM') {
+	    environment {
+                SSH = credentials('ssh-jen')
+	    }//env
             steps {
                 script {
-			echo "create"
 		//NYC1   New York City, United States   nyc1
 		//NYC3   New York City, United States   nyc3
 		//AMS3   Amsterdam, the Netherlands   ams3
@@ -44,19 +46,43 @@ pipeline {
 			{
 				size = "s-1vcpu-512mb-10gb"
 			}
+			//sh """
+			//	whoami
+			//	doctl compute droplet create --region ${params.location} --image ubuntu-22-04-x64 --ssh-keys ${SSH} --size ${size} jen-auto
+			//"""
+			//sleep time: "2", unit: 'MINUTES'
 			sh """
-				doctl compute droplet create --region ${params.location} --image ubuntu-22-04-x64 --size ${size} jen-auto
+				doctl compute droplet get --template {{.PublicIPv4}} jen-auto
+				echo "[servers]" > ./src/inventory.ini
+				doctl compute droplet get --template {{.PublicIPv4}} jen-auto >> ./src/inventory.ini
 			"""
                  }//script
 	     }//steps
         }//stage
-	 stage('wait') {
+         stage('install wg') {
+            steps {
+	        script {
+		    ansiColor('xterm') {
+   		    	ansiblePlaybook( 
+                    	playbook: './src/playbook.yml',
+                    	inventory: './src/inventory.ini',
+			disableHostKeyChecking: true,
+			//becomeUser: 'root', 
+                    	credentialsId: '/home/atweek/.ssh/id_rsa.pub',
+  			sudoUser: 'root',
+        	    	colorized: true) 
+                    }
+                 }//script
+             }//steps
+        }//stage
+	stage('wait') {
             steps {
 	         script {
 			sleep time: "${params.time}", unit: 'MINUTES'	
                  }//script
              }//steps
         }//stage
+
         stage('remove') {
             steps {
 	         script {
